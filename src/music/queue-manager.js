@@ -12,7 +12,7 @@ export async function playNextSong(guildId, client, voiceChannelId = null) {
     const queue = cus.queues.get(guildId);
     
     // Nếu hàng đợi trống, xóa bài hát hiện tại
-    if (!queue || queue.length === 0) {
+    if (!queue || queue.length === 0) { 
         cus.currentSongs.delete(guildId);
         if (typeof cus.emitPlaybackUpdate === 'function') {
             cus.emitPlaybackUpdate(guildId, null, false);
@@ -44,8 +44,7 @@ export async function playNextSong(guildId, client, voiceChannelId = null) {
                 console.log(`Không tìm thấy kênh voice trong server ${guild.name}`);
                 // Xóa bài hát hiện tại và chuyển sang bài tiếp theo
                 cus.currentSongs.delete(guildId);
-                await setTimeout(1000);
-                return playNextSong(guildId, client);
+                return;
             }
             voiceChannel = voiceChannels.first();
         }
@@ -54,7 +53,6 @@ export async function playNextSong(guildId, client, voiceChannelId = null) {
     if (!voiceChannel) {
         console.error(`Không thể tìm thấy kênh voice với ID: ${voiceChannelId}`);
         cus.currentSongs.delete(guildId);
-        await setTimeout(1000);
         return;
     }
     
@@ -83,10 +81,8 @@ export async function playNextSong(guildId, client, voiceChannelId = null) {
         // Xử lý lỗi từ player
         player.on('error', (error) => {
             console.error('Lỗi player:', error);
-            setTimeout(1000).then(() => playNextSong(guildId, client, voiceChannel.id));
+            setTimeout(() => playNextSong(guildId, client, voiceChannel.id), 1000);
         });
-        
-        console.log(`Đang cố gắng phát: ${song.title}`);
         
         // Lấy videoId từ URL
         let videoId;
@@ -101,57 +97,74 @@ export async function playNextSong(guildId, client, voiceChannelId = null) {
                     videoId = videoId.split('&')[0];
                 }
             } catch (e) {
-                // Nếu URL không hợp lệ, thử sử dụng ID trực tiếp
                 videoId = song.url;
             }
         } else {
             videoId = song.url;
         }
         
-        // Phát bài hát sử dụng yt-dlp
+        // Cập nhật trạng thái bot
+        cus.updateBotStatus(client, guildId);
+        
+        console.log(`Phát bài hát với yt-dlp: ${song.title} (${videoId})`);
+        
+        // Chuẩn bị các tham số phát nhạc
+        const additionalArgs = [
+            // Tối ưu hóa cho streaming nhanh
+            '--force-ipv4',
+            '--no-check-certificate',
+            '--prefer-insecure',
+            '--geo-bypass',
+            '--audio-quality', '0', // Chất lượng âm thanh cao nhất
+            '--buffer-size', '16K', // Buffer nhỏ để bắt đầu phát nhanh hơn
+        ];
+        
+        // Nếu có vị trí seek, thêm tham số
+        if (song.seekPosition) {
+            additionalArgs.push('--start-time', `${song.seekPosition}`);
+            console.log(`Đang seek đến vị trí ${song.seekPosition}s`);
+        }
+        
         try {
-            console.log(`Phát bài hát với yt-dlp: ${song.title} (${videoId})`);
-            
-            // Lấy stream audio từ yt-dlp
+            // Lấy stream audio từ yt-dlp với các tham số tối ưu
             const audioStream = await ytdlpManager.streamAudio(videoId, {
-                additionalArgs: [
-                    // Chọn audio chất lượng cao
-                    '--audio-quality', '0',
-                    // Thêm các tùy chọn khác nếu cần
-                ]
+                additionalArgs
             });
             
             // Tạo resource và phát
-            const resource = createAudioResource(audioStream);
+            const resource = createAudioResource(audioStream, {
+                inputType: StreamType.Arbitrary,
+                inlineVolume: true
+            });
+            
+            // Thiết lập âm lượng
+            if (resource.volume) {
+                resource.volume.setVolume(1.0);
+            }
+            
             player.play(resource);
             
             console.log(`Đang phát bài hát: ${song.title}`);
             
             // Thông báo qua socket.io
             if (typeof cus.emitPlaybackUpdate === 'function') {
-                cus.emitPlaybackUpdate(guildId, song, true);
+                cus.emitPlaybackUpdate(guildId, song, true, {
+                    seekPosition: song.seekPosition || 0
+                });
                 cus.emitQueueUpdate(guildId, cus.getQueue(guildId));
             }
         } catch (error) {
             console.error('Lỗi khi phát nhạc với yt-dlp:', error);
             
-            // Thử phương pháp dự phòng nếu yt-dlp thất bại
-            console.log('Chuyển sang phương pháp dự phòng...');
-            
-            // [Giữ mã dự phòng sử dụng youtubei.js ở đây]
-            // ... (các phương pháp dự phòng hiện tại)
-            
             // Nếu tất cả đều thất bại, chuyển sang bài tiếp theo
             console.error(`Không thể phát bài ${song.title}. Đang chuyển sang bài tiếp theo...`);
             cus.currentSongs.delete(guildId);
-            await setTimeout(1000);
-            playNextSong(guildId, client, voiceChannel.id);
+            setTimeout(() => playNextSong(guildId, client, voiceChannel.id), 1000);
         }
         
     } catch (error) {
         console.error('Lỗi khi phát nhạc:', error);
         cus.currentSongs.delete(guildId);
-        await setTimeout(1000);
-        playNextSong(guildId, client, voiceChannel.id);
+        setTimeout(() => playNextSong(guildId, client, voiceChannel.id), 1000);
     }
 }

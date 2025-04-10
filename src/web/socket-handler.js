@@ -12,14 +12,37 @@ export function setupSocketHandlers(io, client) {
             const { guildId } = data;
             if (guildId) {
                 const queue = client.cus.getQueue(guildId);
-                const currentSong = client.cus.getCurrentSong(guildId);
+                const playbackState = client.cus.getPlaybackState(guildId);
                 
                 socket.emit('queueUpdate', { guildId, queue });
                 socket.emit('playbackUpdate', { 
-                    guildId, 
-                    currentSong, 
-                    isPlaying: currentSong !== undefined 
+                    guildId,
+                    ...playbackState
                 });
+            }
+        });
+        
+        // Xử lý lệnh pause
+        socket.on('pausePlayback', (data) => {
+            const { guildId } = data;
+            if (guildId) {
+                client.cus.pausePlayback(guildId);
+            }
+        });
+        
+        // Xử lý lệnh resume
+        socket.on('resumePlayback', (data) => {
+            const { guildId } = data;
+            if (guildId) {
+                client.cus.resumePlayback(guildId);
+            }
+        });
+        
+        // Xử lý lệnh seek
+        socket.on('seekToPosition', (data) => {
+            const { guildId, position } = data;
+            if (guildId && position !== undefined) {
+                client.cus.seekToPosition(guildId, position);
             }
         });
         
@@ -29,8 +52,14 @@ export function setupSocketHandlers(io, client) {
     });
     
     // Đăng ký hàm emit để có thể sử dụng từ nơi khác
-    client.cus.emitPlaybackUpdate = (guildId, currentSong, isPlaying) => {
-        io.emit('playbackUpdate', { guildId, currentSong, isPlaying });
+    client.cus.emitPlaybackUpdate = (guildId, currentSong, isPlaying, additionalInfo = {}) => {
+        io.emit('playbackUpdate', { 
+            guildId, 
+            currentSong, 
+            isPlaying,
+            isPaused: additionalInfo.isPaused || false,
+            seekPosition: additionalInfo.seekPosition || 0
+        });
     };
     
     client.cus.emitQueueUpdate = (guildId, queue) => {

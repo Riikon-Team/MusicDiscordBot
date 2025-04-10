@@ -257,6 +257,78 @@ export function setupRoutes(app, client) {
             res.status(500).json({ error: 'Lỗi khi kết nối kênh voice' });
         }
     });
+
+    // API - Tạm dừng phát nhạc
+    app.post('/api/pause', (req, res) => {
+        try {
+            const { guildId } = req.body;
+            
+            if (!client.cus) {
+                return res.status(500).json({ error: 'Bot đang khởi động, vui lòng thử lại sau' });
+            }
+            
+            const success = client.cus.pausePlayback(guildId);
+            
+            if (success) {
+                res.json({ success: true });
+            } else {
+                res.status(400).json({ error: 'Không thể tạm dừng phát nhạc' });
+            }
+        } catch (error) {
+            console.error('Lỗi khi tạm dừng phát nhạc:', error);
+            res.status(500).json({ error: 'Lỗi khi tạm dừng phát nhạc' });
+        }
+    });
+    
+    // API - Tiếp tục phát nhạc
+    app.post('/api/resume', (req, res) => {
+        try {
+            const { guildId } = req.body;
+            
+            if (!client.cus) {
+                return res.status(500).json({ error: 'Bot đang khởi động, vui lòng thử lại sau' });
+            }
+            
+            const success = client.cus.resumePlayback(guildId);
+            
+            if (success) {
+                res.json({ success: true });
+            } else {
+                res.status(400).json({ error: 'Không thể tiếp tục phát nhạc' });
+            }
+        } catch (error) {
+            console.error('Lỗi khi tiếp tục phát nhạc:', error);
+            res.status(500).json({ error: 'Lỗi khi tiếp tục phát nhạc' });
+        }
+    });
+    
+    // API - Seek đến vị trí
+    app.post('/api/seek', async (req, res) => {
+        try {
+            const { guildId, position } = req.body;
+            
+            if (!client.cus) {
+                return res.status(500).json({ error: 'Bot đang khởi động, vui lòng thử lại sau' });
+            }
+            
+            if (!guildId || position === undefined) {
+                return res.status(400).json({ error: 'Thiếu thông tin cần thiết' });
+            }
+            
+            const success = await client.cus.seekToPosition(guildId, parseInt(position, 10));
+            
+            if (success) {
+                // Phát lại bài hát từ vị trí mới
+                await playNextSong(guildId, client);
+                res.json({ success: true });
+            } else {
+                res.status(400).json({ error: 'Không thể seek đến vị trí đã chọn' });
+            }
+        } catch (error) {
+            console.error('Lỗi khi seek:', error);
+            res.status(500).json({ error: 'Lỗi khi seek' });
+        }
+    });
 }
 
 // Hàm định dạng thời gian

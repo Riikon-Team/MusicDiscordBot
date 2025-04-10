@@ -113,6 +113,29 @@
                                 <h4>Người chơi nhạc</h4>
                             </div>
                             <div class="card-body">
+                                <div class="playback-controls mt-3 mb-2" id="playback-controls">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <button id="play-pause-button" class="btn btn-primary"
+                                            onclick="togglePlayPause()">
+                                            <i class="fas fa-play"></i> Phát
+                                        </button>
+                                        <button id="skip-button" class="btn btn-warning" onclick="skipSong()">
+                                            <i class="fas fa-forward"></i> Bỏ qua
+                                        </button>
+                                        <button id="stop-button" class="btn btn-danger" onclick="stopPlayback()">
+                                            <i class="fas fa-stop"></i> Dừng lại
+                                        </button>
+                                    </div>
+
+                                    <div class="progress mt-3" style="height: 20px;">
+                                        <div id="seek-bar" class="progress-bar bg-info" role="progressbar"
+                                            style="width: 0%"></div>
+                                    </div>
+                                    <div class="d-flex justify-content-between">
+                                        <small id="current-time">0:00</small>
+                                        <small id="total-time">0:00</small>
+                                    </div>
+                                </div>
                                 <div id="player-container">
                                     <% if (currentSong) { %>
                                         <div class="current-song-info">
@@ -269,7 +292,26 @@
         let totalPages = 1;
         let voiceChannelModal;
 
+        let currentSongDuration = 0;
+        let currentProgress = 0;
+        let isPlaying = false;
+        let isPaused = false;
+        let progressInterval = null;
+
         document.addEventListener('DOMContentLoaded', function () {
+            const progressContainer = document.querySelector('.progress');
+            if (progressContainer) {
+                progressContainer.addEventListener('click', function (e) {
+                    if (!currentSongDuration) return;
+
+                    const rect = this.getBoundingClientRect();
+                    const pos = (e.clientX - rect.left) / rect.width;
+                    const seekPos = pos * currentSongDuration;
+
+                    seekToPosition(seekPos);
+                });
+            }
+
             // Khởi tạo modal
             voiceChannelModal = new bootstrap.Modal(document.getElementById('voiceChannelModal'));
 
@@ -293,6 +335,23 @@
             socket.on('playbackUpdate', function (data) {
                 if (data.guildId === guildId) {
                     updateCurrentSong(data.currentSong, data.isPlaying);
+                    isPlaying = data.isPlaying;
+                    isPaused = data.isPaused || false;
+
+                    // Nếu có thông tin seek, cập nhật vị trí hiện tại
+                    if (data.seekPosition) {
+                        currentProgress = data.seekPosition;
+                    }
+
+                    updatePlayPauseButton();
+                    updateProgressBar();
+
+                    // Nếu đang phát và chưa có interval, bắt đầu cập nhật tiến trình
+                    if (isPlaying && !isPaused && !progressInterval) {
+                        startProgressInterval();
+                    } else if (isPaused || !isPlaying) {
+                        stopProgressInterval();
+                    }
                 }
             });
 
@@ -302,7 +361,206 @@
                     updateQueueList(data.queue);
                 }
             });
+
+            // Cập nhật hàm updateCurrentSong để xử lý thời lượng
+            window.updateCurrentSong = function (song, isPlaying) {
+                const playerContainer = document.getElementById('player-container');
+
+                if (!song) {
+                    playerContainer.innerHTML = `
+                <div class="text-center p-5">
+                    <h5>Không có bài hát nào đang phát</h5>
+                    <p>Thêm một bài hát để bắt đầu phát nhạc</p>
+                </div>
+            `;
+                    currentSongDuration = 0;
+                    currentProgress = 0;
+                    stopProgressInterval();
+                    return;
+                }
+
+                // Lưu thời lượng bài hát
+                if (song.duration) {
+                    const durationParts = song.duration.split(':');
+                    if (durationParts.length === 2) {
+                        currentSongDuration = parseInt(durationParts[0], 10) * 60 + parseInt(durationParts[1], 10);
+                    }
+                }
+
+                playerContainer.innerHTML = `
+            <div class="current-song-info">
+                <div class="row">
+                    <div class="col-md-4">
+                        <img src="${song.thumbnail}" class="img-fluid rounded" alt="${song.title}">
+                    </div>
+                    <div class="col-md-8">
+                        <h5 id="current-song-title">${song.title}</h5>
+                        <div class="duration">
+                            <span class="badge bg-secondary">${song.duration || 'N/A'}</span>
+                        </div>
+                        <div class="playback-controls mt-3 mb-2" id="playback-controls">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <button id="play-pause-button" class="btn btn-warning" onclick="togglePlayPause()">
+                                    <i class="fas fa-pause"></i> Tạm dừng
+                                </button>
+                                <button id="skip-button" class="btn btn-warning" onclick="skipSong()">
+                                    <i class="fas fa-forward"></i> Bỏ qua
+                                </button>
+                                <button id="stop-button" class="btn btn-danger" onclick="stopPlayback()">
+                                    <i class="fas fa-stop"></i> Dừng lại
+                                </button>
+                            </div>
+                            
+                            <div class="progress mt-3" style="height: 20px; cursor: pointer;">
+                                <div id="seek-bar" class="progress-bar bg-info" role="progressbar" style="width: 0%"></div>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <small id="current-time">0:00</small>
+                                <small id="total-time">${song.duration || '0:00'}</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+                // Thêm lại listener cho thanh tiến trình
+                const progressContainer = document.querySelector('.progress');
+                if (progressContainer) {
+                    progressContainer.addEventListener('click', function (e) {
+                        if (!currentSongDuration) return;
+
+                        const rect = this.getBoundingClientRect();
+                        const pos = (e.clientX - rect.left) / rect.width;
+                        const seekPos = pos * currentSongDuration;
+
+                        seekToPosition(seekPos);
+                    });
+                }
+
+                updatePlayPauseButton();
+                updateProgressBar();
+
+                // Bắt đầu cập nhật tiến trình
+                if (isPlaying && !isPaused) {
+                    startProgressInterval();
+                }
+            };
         });
+
+        // Bắt đầu interval cập nhật tiến trình
+        function startProgressInterval() {
+            stopProgressInterval(); // Dừng interval hiện tại nếu có
+            progressInterval = setInterval(function () {
+                if (isPlaying && !isPaused) {
+                    currentProgress++;
+                    updateProgressBar();
+                }
+            }, 1000);
+        }
+
+        // Dừng interval cập nhật tiến trình
+        function stopProgressInterval() {
+            if (progressInterval) {
+                clearInterval(progressInterval);
+                progressInterval = null;
+            }
+        }
+
+        // Cập nhật thanh tiến trình
+        function updateProgressBar() {
+            const seekBar = document.getElementById('seek-bar');
+            const currentTimeEl = document.getElementById('current-time');
+            const totalTimeEl = document.getElementById('total-time');
+
+            if (currentSongDuration > 0) {
+                const percent = (currentProgress / currentSongDuration) * 100;
+                seekBar.style.width = `${percent}%`;
+            } else {
+                seekBar.style.width = '0%';
+            }
+
+            currentTimeEl.textContent = formatTime(currentProgress);
+            totalTimeEl.textContent = formatTime(currentSongDuration);
+        }
+
+        // Cập nhật nút play/pause
+        function updatePlayPauseButton() {
+            const playPauseBtn = document.getElementById('play-pause-button');
+            if (!playPauseBtn) return;
+
+            if (isPaused) {
+                playPauseBtn.innerHTML = '<i class="fas fa-play"></i> Tiếp tục';
+                playPauseBtn.classList.remove('btn-warning');
+                playPauseBtn.classList.add('btn-success');
+            } else if (isPlaying) {
+                playPauseBtn.innerHTML = '<i class="fas fa-pause"></i> Tạm dừng';
+                playPauseBtn.classList.remove('btn-success');
+                playPauseBtn.classList.add('btn-warning');
+            } else {
+                playPauseBtn.innerHTML = '<i class="fas fa-play"></i> Phát';
+                playPauseBtn.classList.remove('btn-warning');
+                playPauseBtn.classList.add('btn-primary');
+            }
+        }
+
+        // Chuyển đổi giữa phát và tạm dừng
+        async function togglePlayPause() {
+            if (!isPlaying) return; // Không có bài hát nào đang phát
+
+            try {
+                if (isPaused) {
+                    // Tiếp tục phát
+                    await fetch('/api/resume', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ guildId })
+                    });
+                    isPaused = false;
+                } else {
+                    // Tạm dừng
+                    await fetch('/api/pause', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ guildId })
+                    });
+                    isPaused = true;
+                }
+
+                updatePlayPauseButton();
+            } catch (error) {
+                console.error('Error toggling playback:', error);
+            }
+        }
+
+        // Tìm đến vị trí trong bài hát
+        async function seekToPosition(position) {
+            try {
+                await fetch('/api/seek', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        guildId,
+                        position: Math.floor(position)
+                    })
+                });
+            } catch (error) {
+                console.error('Error seeking:', error);
+            }
+        }
+
+        // Định dạng thời gian từ giây sang MM:SS
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+        }
 
         // Tìm kiếm video
         async function searchVideos(query, page) {
@@ -643,7 +901,10 @@
                 </li>
             `).join('');
         }
+
     </script>
+
+    <script></script>
 </body>
 
 </html>

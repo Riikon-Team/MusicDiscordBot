@@ -8,7 +8,7 @@ import { pipeline } from 'stream/promises';
 import { createWriteStream, existsSync } from 'fs';
 
 const execAsync = promisify(exec);
-const __filename = fileURLToPath(import.meta.url);
+const __filename = fileURLToPath(import.meta.url); 
 const __dirname = path.dirname(__filename);
 
 // Paths
@@ -268,7 +268,20 @@ export class YTDLPManager {
             // No metadata, no thumbnails
             '--no-write-info-json',
             '--no-write-annotations',
-            '--no-write-thumbnail'
+            '--no-write-thumbnail',
+            // Thêm các tùy chọn tối ưu tốc độ
+            '--force-ipv4',
+            '--no-check-certificate', 
+            '--prefer-insecure',
+            '--geo-bypass',
+            // Giảm buffer để có thể bắt đầu stream nhanh hơn
+            '--buffer-size', '16K',
+            // Tắt các tính năng không cần thiết
+            '--no-playlist',
+            '--no-simulate',
+            '--no-progress',
+            // Tối ưu kết nối mạng
+            '--concurrent-fragments', '3'
         ];
 
         // Add cookies if they exist
@@ -288,7 +301,9 @@ export class YTDLPManager {
 
         return new Promise((resolve, reject) => {
             const ytDlp = spawn(ytdlpPath, defaultOptions, {
-                stdio: ['ignore', 'pipe', 'pipe']
+                stdio: ['ignore', 'pipe', 'pipe'],
+                // Tăng priority cho process
+                windowsHide: true
             });
 
             let stderrData = '';
@@ -305,7 +320,7 @@ export class YTDLPManager {
             });
 
             ytDlp.on('close', (code) => {
-                if (code !== 0) {
+                if (code !== 0 && code !== null) {
                     const error = new Error(`yt-dlp process exited with code ${code}: ${stderrData}`);
                     console.error(error.message);
                     reject(error);

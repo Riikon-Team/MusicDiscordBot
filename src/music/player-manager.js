@@ -13,7 +13,7 @@ export async function createPlayerManager() {
     const currentSongs = new Map(); // Lưu bài hát đang phát
     
     // Khởi tạo YouTube API client với cấu hình nâng cao
-    const innertube = await Innertube.create({
+    const innertube = await Innertube.create({ 
         gl: 'VN',
         hl: 'vi',
         generate_session_locally: true, 
@@ -112,6 +112,136 @@ export async function createPlayerManager() {
          */
         getCurrentSong(guildId) {
             return this.currentSongs.get(guildId);
+        },
+        
+        /**
+         * Tạm dừng phát nhạc
+         * @param {String} guildId ID của guild
+         * @returns {Boolean} Trạng thái thành công
+         */
+        pausePlayback(guildId) {
+            const player = this.players.get(guildId);
+            if (player) {
+                player.pause();
+                
+                // Cập nhật trạng thái phát
+                const song = this.currentSongs.get(guildId);
+                if (song && typeof this.emitPlaybackUpdate === 'function') {
+                    this.emitPlaybackUpdate(guildId, song, false, { isPaused: true });
+                }
+                
+                return true;
+            }
+            return false;
+        },
+        
+        /**
+         * Tiếp tục phát nhạc
+         * @param {String} guildId ID của guild
+         * @returns {Boolean} Trạng thái thành công
+         */
+        resumePlayback(guildId) {
+            const player = this.players.get(guildId);
+            if (player) {
+                player.unpause();
+                
+                // Cập nhật trạng thái phát
+                const song = this.currentSongs.get(guildId);
+                if (song && typeof this.emitPlaybackUpdate === 'function') {
+                    this.emitPlaybackUpdate(guildId, song, true, { isPaused: false });
+                }
+                
+                return true;
+            }
+            return false;
+        },
+        
+        /**
+         * Tìm đến vị trí cụ thể trong bài hát
+         * @param {String} guildId ID của guild
+         * @param {Number} position Vị trí theo giây
+         * @returns {Promise<Boolean>} Trạng thái thành công
+         */
+        async seekToPosition(guildId, position) {
+            const song = this.currentSongs.get(guildId);
+            if (!song || !song.url) {
+                return false;
+            }
+            
+            // Lấy ID video từ URL
+            let videoId;
+            try {
+                const urlObj = new URL(song.url);
+                videoId = urlObj.searchParams.get('v') || song.url.split('youtu.be/')[1];
+                if (videoId && videoId.includes('&')) {
+                    videoId = videoId.split('&')[0];
+                }
+            } catch {
+                videoId = song.url;
+            }
+            
+            if (!videoId) return false;
+            
+            try {
+                // Cập nhật thông tin seek vào song
+                song.seekPosition = position;
+                
+                // Lấy player hiện tại
+                const player = this.players.get(guildId);
+                if (!player) return false;
+                
+                // Dừng player hiện tại
+                player.stop();
+                
+                // Cập nhật trạng thái song với vị trí mới
+                this.currentSongs.set(guildId, song);
+                
+                // Sẽ được xử lý tiếp trong queue-manager.js
+                return true;
+            } catch (error) {
+                console.error('Lỗi khi seek:', error);
+                return false;
+            }
+        },
+        
+        /**
+         * Cập nhật trạng thái bot với thông tin bài hát hiện tại
+         * @param {Client} client Discord client
+         * @param {String} guildId ID của guild
+         */
+        updateBotStatus(client, guildId) {
+            const song = this.currentSongs.get(guildId);
+            if (song && client && client.user) {
+                // Cập nhật trạng thái bot
+                client.user.setActivity(`🎵 ${song.title.substring(0, 50)}${song.title.length > 50 ? '...' : ''}`, { 
+                    type: 'LISTENING' 
+                });
+                
+                // Cập nhật nickname của bot trong server nếu cần
+                const guild = client.guilds.cache.get(guildId);
+                if (guild && guild.me && guild.me.manageable) {
+                    guild.me.setNickname(`🎵 DJ Bot`).catch(console.error);
+                }
+            }
+        },
+        
+        /**
+         * Lấy trạng thái phát hiện tại
+         * @param {String} guildId ID của guild
+         * @returns {Object} Trạng thái phát
+         */
+        getPlaybackState(guildId) {
+            const song = this.currentSongs.get(guildId);
+            const player = this.players.get(guildId);
+            const queue = this.getQueue(guildId);
+            
+            return {
+                currentSong: song,
+                isPlaying: player ? !player.paused : false,
+                isPaused: player ? player.paused : false,
+                queueLength: queue.length,
+                voiceChannelId: this.getCurrentVoiceChannel(guildId)
+            };
         },
         
         /**

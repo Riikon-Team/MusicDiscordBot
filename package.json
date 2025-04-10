@@ -1,0 +1,27 @@
+{
+  "name": "musicdiscordbot",
+  "version": "1.0.0",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@discordjs/voice": "^0.18.0",
+    "cors": "^2.8.5",
+    "discord.js": "^14.18.0",
+    "dotenv": "^16.4.7",
+    "ejs": "^3.1.10",
+    "express": "^5.1.0",
+    "node-fetch": "^3.3.2",
+    "nodemon": "^3.1.9",
+    "socket.io": "^4.8.1",
+    "youtubei.js": "^13.3.0"
+  }
+}

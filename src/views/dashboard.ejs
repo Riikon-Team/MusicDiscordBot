@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Music Dashboard - <%= guild.name %>
+    </title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+
+<body>
+    <div class="container mt-4">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/">Trang chủ</a></li>
+                <li class="breadcrumb-item active">
+                    <%= guild.name %>
+                </li>
+            </ol>
+        </nav>
+        <% if (error) { %>
+            <div class="alert alert-warning mt-3">
+                <%= error %>
+            </div>
+            <% } %>
+
+                <div class="row">
+                    <div class="col-md-12 text-center mb-4">
+                        <h1>
+                            <%= guild.name %>
+                        </h1>
+                        <img src="<%= guild.iconURL() || 'https://via.placeholder.com/150' %>"
+                            class="guild-icon rounded-circle" alt="<%= guild.name %>">
+                    </div>
+                </div>
+
+                <!-- Kết nối Voice Channel -->
+                <div class="row mb-4">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h4 class="mb-0">Kênh Voice</h4>
+                                <div>
+                                    <% if (currentVoiceChannel) { %>
+                                        <span class="badge bg-success">
+                                            <i class="fas fa-circle"></i> Đang kết nối
+                                        </span>
+                                        <% } else { %>
+                                            <span class="badge bg-secondary">
+                                                <i class="fas fa-circle"></i> Chưa kết nối
+                                            </span>
+                                            <% } %>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <% if (currentVoiceChannel) { %>
+                                        <div>
+                                            <i class="fas fa-volume-up"></i>
+                                            <strong>Kênh hiện tại:</strong>
+                                            <% const currentChannel=voiceChannels.find(c=> c.id ===
+                                                currentVoiceChannel); %>
+                                                <%= currentChannel ? currentChannel.name : 'Không rõ' %>
+                                        </div>
+                                        <% } else { %>
+                                            <div>
+                                                <i class="fas fa-volume-mute"></i>
+                                                <em>Bot không có mặt trong kênh voice nào</em>
+                                            </div>
+                                            <% } %>
+
+                                                <div class="dropdown">
+                                                    <button class="btn btn-primary dropdown-toggle" type="button"
+                                                        id="voiceChannelDropdown" data-bs-toggle="dropdown"
+                                                        aria-expanded="false">
+                                                        <i class="fas fa-headphones"></i> Chọn kênh voice
+                                                    </button>
+                                                    <ul class="dropdown-menu" aria-labelledby="voiceChannelDropdown">
+                                                        <% if (voiceChannels && voiceChannels.length> 0) { %>
+                                                            <% voiceChannels.forEach(channel=> { %>
+                                                                <li>
+                                                                    <a class="dropdown-item <%= channel.id === currentVoiceChannel ? 'active' : '' %>"
+                                                                        href="#"
+                                                                        onclick="joinVoiceChannel('<%= channel.id %>')">
+                                                                        <%= channel.name %>
+                                                                            <span class="badge bg-secondary">
+                                                                                <%= channel.members %> người
+                                                                            </span>
+                                                                    </a>
+                                                                </li>
+                                                                <% }); %>
+                                                                    <% } else { %>
+                                                                        <li><a class="dropdown-item disabled"
+                                                                                href="#">Không có kênh voice nào</a>
+                                                                        </li>
+                                                                        <% } %>
+                                                    </ul>
+                                                </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <!-- Player và Tìm kiếm -->
+                    <div class="col-md-8">
+                        <div class="card mb-4">
+                            <div class="card-header">
+                                <h4>Người chơi nhạc</h4>
+                            </div>
+                            <div class="card-body">
+                                <div id="player-container">
+                                    <% if (currentSong) { %>
+                                        <div class="current-song-info">
+                                            <div class="row">
+                                                <div class="col-md-4">
+                                                    <img src="<%= currentSong.thumbnail %>" class="img-fluid rounded"
+                                                        alt="<%= currentSong.title %>">
+                                                </div>
+                                                <div class="col-md-8">
+                                                    <h5 id="current-song-title">
+                                                        <%= currentSong.title %>
+                                                    </h5>
+                                                    <div class="duration">
+                                                        <span class="badge bg-secondary">
+                                                            <%= currentSong.duration || 'N/A' %>
+                                                        </span>
+                                                    </div>
+                                                    <div class="mt-3">
+                                                        <button id="skip-button" class="btn btn-warning"
+                                                            onclick="skipSong()">
+                                                            <i class="fas fa-forward"></i> Bỏ qua
+                                                        </button>
+                                                        <button id="stop-button" class="btn btn-danger"
+                                                            onclick="stopPlayback()">
+                                                            <i class="fas fa-stop"></i> Dừng lại
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <% } else { %>
+                                            <div class="text-center p-5">
+                                                <h5>Không có bài hát nào đang phát</h5>
+                                                <p>Thêm một bài hát để bắt đầu phát nhạc</p>
+                                            </div>
+                                            <% } %>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tìm kiếm và thêm bài hát -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h4>Tìm kiếm và thêm bài hát</h4>
+                            </div>
+                            <div class="card-body">
+                                <form id="search-form">
+                                    <div class="input-group mb-3">
+                                        <input type="text" id="search-input" class="form-control"
+                                            placeholder="Nhập tên bài hát hoặc URL YouTube">
+                                        <button class="btn btn-primary" type="submit">
+                                            <i class="fas fa-search"></i> Tìm kiếm
+                                        </button>
+                                    </div>
+                                </form>
+
+                                <!-- Kết quả tìm kiếm sẽ hiển thị ở đây -->
+                                <div id="search-results">
+                                    <div id="results-container" class="d-none">
+                                        <div class="list-group search-results-list">
+                                            <!-- Kết quả tìm kiếm sẽ được thêm vào đây -->
+                                        </div>
+
+                                        <!-- Phân trang -->
+                                        <div class="d-flex justify-content-center mt-3">
+                                            <nav aria-label="Phân trang kết quả tìm kiếm">
+                                                <ul class="pagination pagination-sm" id="search-pagination">
+                                                    <!-- Các nút phân trang sẽ được thêm vào đây -->
+                                                </ul>
+                                            </nav>
+                                        </div>
+                                    </div>
+
+                                    <!-- Thông báo đang tìm kiếm -->
+                                    <div id="searching-indicator" class="text-center d-none">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Đang tìm kiếm...</span>
+                                        </div>
+                                        <p class="mt-2">Đang tìm kiếm...</p>
+                                    </div>
+
+                                    <!-- Thông báo lỗi -->
+                                    <div id="search-error" class="alert alert-danger d-none">
+                                        <i class="fas fa-exclamation-circle"></i>
+                                        <span id="error-message">Đã xảy ra lỗi khi tìm kiếm.</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Danh sách phát -->
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h4>Danh sách phát</h4>
+                            </div>
+                            <div class="card-body">
+                                <ul id="queue-list" class="list-group">
+                                    <% if (queue && queue.length> 0) { %>
+                                        <% queue.forEach((song, index)=> { %>
+                                            <li
+                                                class="list-group-item d-flex justify-content-between align-items-center">
+                                                <div>
+                                                    <span class="badge bg-primary me-2">
+                                                        <%= index + 1 %>
+                                                    </span>
+                                                    <%= song.title %>
+                                                </div>
+                                                <span class="badge bg-secondary">
+                                                    <%= song.duration || 'N/A' %>
+                                                </span>
+                                            </li>
+                                            <% }); %>
+                                                <% } else { %>
+                                                    <li class="list-group-item text-center">Danh sách phát trống</li>
+                                                    <% } %>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+    </div>
+
+    <!-- Modal chọn kênh voice -->
+    <div class="modal fade" id="voiceChannelModal" tabindex="-1" aria-labelledby="voiceChannelModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="voiceChannelModalLabel">Chọn kênh voice</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Bot cần tham gia một kênh voice để phát nhạc. Vui lòng chọn một kênh:</p>
+                    <div class="list-group" id="modal-voice-channels">
+                        <!-- Danh sách kênh voice sẽ được thêm vào đây -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        // Lưu guildId cho các API calls
+        const guildId = '<%= guild.id %>';
+        let currentPage = 1;
+        let lastQuery = '';
+        let totalPages = 1;
+        let voiceChannelModal;
+
+        document.addEventListener('DOMContentLoaded', function () {
+            // Khởi tạo modal
+            voiceChannelModal = new bootstrap.Modal(document.getElementById('voiceChannelModal'));
+
+            // Kết nối Socket.IO
+            const socket = io();
+
+            // Xử lý form tìm kiếm
+            document.getElementById('search-form').addEventListener('submit', async function (e) {
+                e.preventDefault();
+                const query = document.getElementById('search-input').value.trim();
+                if (!query) return;
+
+                // Lưu truy vấn hiện tại và đặt lại trang
+                lastQuery = query;
+                currentPage = 1;
+
+                await searchVideos(query, 1);
+            });
+
+            // Cập nhật giao diện khi có thay đổi về bài hát đang phát
+            socket.on('playbackUpdate', function (data) {
+                if (data.guildId === guildId) {
+                    updateCurrentSong(data.currentSong, data.isPlaying);
+                }
+            });
+
+            // Cập nhật giao diện khi có thay đổi về hàng đợi
+            socket.on('queueUpdate', function (data) {
+                if (data.guildId === guildId) {
+                    updateQueueList(data.queue);
+                }
+            });
+        });
+
+        // Tìm kiếm video
+        async function searchVideos(query, page) {
+            showSearchingIndicator();
+
+            try {
+                const response = await fetch(`/api/search?query=${encodeURIComponent(query)}&page=${page}`);
+                const data = await response.json();
+
+                if (data.error) {
+                    showSearchError(data.error);
+                    return;
+                }
+
+                // Cập nhật biến toàn cục
+                currentPage = data.pagination.currentPage;
+                totalPages = data.pagination.totalPages;
+
+                // Hiển thị kết quả
+                displaySearchResults(data.videos, data.pagination);
+            } catch (error) {
+                console.error('Error searching videos:', error);
+                showSearchError('Đã xảy ra lỗi khi tìm kiếm. Vui lòng thử lại sau.');
+            }
+        }
+
+        // Hiển thị kết quả tìm kiếm
+        function displaySearchResults(videos, pagination) {
+            const resultsContainer = document.getElementById('results-container');
+            const resultsList = resultsContainer.querySelector('.search-results-list');
+
+            // Xóa kết quả cũ
+            resultsList.innerHTML = '';
+
+            // Thêm kết quả mới
+            if (videos && videos.length > 0) {
+                videos.forEach((video) => {
+                    // Lấy tiêu đề từ đối tượng title
+                    const titleText = video.title.text || (video.title.runs && video.title.runs[0] ? video.title.runs[0].text : "Không có tiêu đề");
+                    // Escape các ký tự đặc biệt
+                    const escapedTitle = titleText.replace(/'/g, "\\'").replace(/"/g, "&quot;");
+
+                    resultsList.innerHTML += `
+                    <div class="list-group-item list-group-item-action search-result-item">
+                        <div class="d-flex w-100 justify-content-between">
+                            <div class="d-flex">
+                                <div class="me-3">
+                                    <img src="${video.thumbnail}" alt="${escapedTitle}" style="width: 120px; height: 68px; object-fit: cover;">
+                                </div>
+                                <div>
+                                    <h6 class="mb-1">${titleText}</h6>
+                                    <p class="mb-1 text-muted small">
+                                        ${video.channel} • ${video.views} • ${video.duration}
+                                    </p>
+                                </div>
+                            </div>
+                            <button class="btn btn-sm btn-success align-self-center" 
+                                    onclick="addToQueue('${video.id}', '${escapedTitle}', '${video.thumbnail}', '${video.duration}')">
+                                <i class="fas fa-plus"></i> Thêm
+                            </button>
+                        </div>
+                    </div>
+                `;
+                });
+
+                // Cập nhật phân trang
+                updatePagination(pagination);
+            } else {
+                resultsList.innerHTML = `
+                <div class="list-group-item text-center">
+                    <p class="mb-0">Không tìm thấy kết quả cho "${lastQuery}"</p>
+                </div>
+            `;
+            }
+
+            // Ẩn đang tìm kiếm và hiển thị kết quả
+            hideSearchingIndicator();
+            resultsContainer.classList.remove('d-none');
+        }
+
+        // Cập nhật phân trang
+        function updatePagination(pagination) {
+            const paginationElement = document.getElementById('search-pagination');
+            paginationElement.innerHTML = '';
+
+            // Nút Previous
+            paginationElement.innerHTML += `
+                <li class="page-item ${pagination.currentPage <= 1 ? 'disabled' : ''}">
+                    <a class="page-link" href="#" onclick="changePage(${pagination.currentPage - 1})">
+                        <i class="fas fa-angle-left"></i>
+                    </a>
+                </li>
+            `;
+
+            // Tính toán phạm vi trang hiển thị
+            let startPage = Math.max(1, pagination.currentPage - 2);
+            let endPage = Math.min(pagination.totalPages, startPage + 4);
+
+            // Điều chỉnh lại nếu cần
+            if (endPage - startPage < 4 && startPage > 1) {
+                startPage = Math.max(1, endPage - 4);
+            }
+
+            // Hiển thị các trang
+            for (let i = startPage; i <= endPage; i++) {
+                paginationElement.innerHTML += `
+                    <li class="page-item ${pagination.currentPage === i ? 'active' : ''}">
+                        <a class="page-link" href="#" onclick="changePage(${i})">${i}</a>
+                    </li>
+                `;
+            }
+
+            // Nút Next
+            paginationElement.innerHTML += `
+                <li class="page-item ${pagination.currentPage >= pagination.totalPages ? 'disabled' : ''}">
+                    <a class="page-link" href="#" onclick="changePage(${pagination.currentPage + 1})">
+                        <i class="fas fa-angle-right"></i>
+                    </a>
+                </li>
+            `;
+        }
+
+        // Đổi trang
+        function changePage(page) {
+            if (page < 1 || page > totalPages || page === currentPage) return;
+            searchVideos(lastQuery, page);
+        }
+
+        // Hiển thị đang tìm kiếm
+        function showSearchingIndicator() {
+            document.getElementById('results-container').classList.add('d-none');
+            document.getElementById('search-error').classList.add('d-none');
+            document.getElementById('searching-indicator').classList.remove('d-none');
+        }
+
+        // Ẩn đang tìm kiếm
+        function hideSearchingIndicator() {
+            document.getElementById('searching-indicator').classList.add('d-none');
+        }
+
+        // Hiển thị lỗi tìm kiếm
+        function showSearchError(message) {
+            document.getElementById('searching-indicator').classList.add('d-none');
+            document.getElementById('results-container').classList.add('d-none');
+
+            const errorElement = document.getElementById('search-error');
+            document.getElementById('error-message').textContent = message;
+            errorElement.classList.remove('d-none');
+        }
+
+        // Thêm bài hát vào hàng đợi
+        async function addToQueue(videoId, title, thumbnail, duration) {
+            try {
+                const response = await fetch('/api/play', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        guildId,
+                        videoId,
+                        title,
+                        thumbnail,
+                        duration
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    // Nếu cần chọn kênh voice
+                    if (data.needVoiceChannel) {
+                        showVoiceChannelModal(data.voiceChannels, videoId, title, thumbnail, duration);
+                    } else {
+                        alert(data.error);
+                    }
+                }
+            } catch (error) {
+                console.error('Error adding to queue:', error);
+                alert('Đã xảy ra lỗi khi thêm bài hát vào hàng đợi');
+            }
+        }
+
+        // Hiển thị modal chọn kênh voice
+        function showVoiceChannelModal(voiceChannels, videoId, title, thumbnail, duration) {
+            const modalChannelsList = document.getElementById('modal-voice-channels');
+            modalChannelsList.innerHTML = '';
+
+            voiceChannels.forEach(channel => {
+                modalChannelsList.innerHTML += `
+                    <button type="button" class="list-group-item list-group-item-action"
+                            onclick="joinAndPlay('${channel.id}', '${videoId}', '${title.replace(/'/g, "\\'")}', '${thumbnail}', '${duration}')">
+                        <i class="fas fa-headphones me-2"></i>
+                        ${channel.name} <span class="badge bg-secondary">${channel.members} người</span>
+                    </button>
+                `;
+            });
+
+            voiceChannelModal.show();
+        }
+
+        // Tham gia kênh voice và phát nhạc
+        async function joinAndPlay(channelId, videoId, title, thumbnail, duration) {
+            try {
+                // Tham gia kênh voice
+                await joinVoiceChannel(channelId);
+
+                // Thêm bài hát vào hàng đợi
+                await fetch('/api/play', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        guildId,
+                        videoId,
+                        title,
+                        thumbnail,
+                        duration,
+                        voiceChannelId: channelId
+                    })
+                });
+
+                // Đóng modal
+                voiceChannelModal.hide();
+            } catch (error) {
+                console.error('Error joining channel and playing:', error);
+                alert('Đã xảy ra lỗi khi tham gia kênh voice');
+            }
+        }
+
+        // Tham gia kênh voice
+        async function joinVoiceChannel(channelId) {
+            try {
+                await fetch('/api/join', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ guildId, voiceChannelId: channelId })
+                });
+
+                // Làm mới trang để cập nhật trạng thái
+                window.location.reload();
+            } catch (error) {
+                console.error('Error joining voice channel:', error);
+                alert('Đã xảy ra lỗi khi tham gia kênh voice');
+            }
+        }
+
+        // Bỏ qua bài hát
+        async function skipSong() {
+            try {
+                await fetch('/api/skip', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ guildId })
+                });
+            } catch (error) {
+                console.error('Error skipping song:', error);
+                alert('Đã xảy ra lỗi khi bỏ qua bài hát');
+            }
+        }
+
+        // Dừng phát nhạc
+        async function stopPlayback() {
+            try {
+                await fetch('/api/stop', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ guildId })
+                });
+            } catch (error) {
+                console.error('Error stopping playback:', error);
+                alert('Đã xảy ra lỗi khi dừng phát nhạc');
+            }
+        }
+
+        // Cập nhật hiển thị bài hát hiện tại
+        function updateCurrentSong(song, isPlaying) {
+            const playerContainer = document.getElementById('player-container');
+
+            if (!song) {
+                playerContainer.innerHTML = `
+                    <div class="text-center p-5">
+                        <h5>Không có bài hát nào đang phát</h5>
+                        <p>Thêm một bài hát để bắt đầu phát nhạc</p>
+                    </div>
+                `;
+                return;
+            }
+
+            playerContainer.innerHTML = `
+                <div class="current-song-info">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <img src="${song.thumbnail}" class="img-fluid rounded" alt="${song.title}">
+                        </div>
+                        <div class="col-md-8">
+                            <h5 id="current-song-title">${song.title}</h5>
+                            <div class="duration">
+                                <span class="badge bg-secondary">${song.duration || 'N/A'}</span>
+                            </div>
+                            <div class="mt-3">
+                                <button id="skip-button" class="btn btn-warning" onclick="skipSong()">
+                                    <i class="fas fa-forward"></i> Bỏ qua
+                                </button>
+                                <button id="stop-button" class="btn btn-danger" onclick="stopPlayback()">
+                                    <i class="fas fa-stop"></i> Dừng lại
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Cập nhật danh sách phát
+        function updateQueueList(queue) {
+            const queueList = document.getElementById('queue-list');
+
+            if (!queue || queue.length === 0) {
+                queueList.innerHTML = '<li class="list-group-item text-center">Danh sách phát trống</li>';
+                return;
+            }
+
+            queueList.innerHTML = queue.map((song, index) => `
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <span class="badge bg-primary me-2">${index + 1}</span>
+                        ${song.title}
+                    </div>
+                    <span class="badge bg-secondary">${song.duration || 'N/A'}</span>
+                </li>
+            `).join('');
+        }
+    </script>
+</body>
+
+</html>
